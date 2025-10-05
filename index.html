@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Scratch Card — Sleuths & Ladders</title>
+
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;700&family=Cinzel+Decorative:wght@700&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+  <style>
+    :root {
+      --card-w: 380px;
+      --card-h: 240px;
+      --magenta: #ff00bf;
+      --amber: #ffb300;
+      --muted: #9b9b9b;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    }
+
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(180deg, rgba(255, 240, 250, 1) 0%, rgba(255, 245, 235, 1) 100%);
+      padding: 28px;
+    }
+
+    /* Main card container */
+    .card {
+      width: var(--card-w);
+      height: var(--card-h);
+      border-radius: 16px;
+      overflow: hidden;
+      position: relative;
+      box-shadow: 0 10px 35px rgba(20, 30, 60, 0.15), 0 2px 8px rgba(0,0,0,0.08);
+      background: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Prize area holds the content to be revealed */
+    .prize {
+      position: absolute;
+      inset: 0;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      z-index: 1;
+      text-align: center;
+      color: #444;
+      transition: background 420ms ease, color 420ms ease;
+    }
+
+    .prize .title {
+      font-family: 'Cinzel Decorative', serif;
+      font-weight: 700;
+      font-size: 22px;
+      color: #333;
+      letter-spacing: 0.6px;
+      margin: 0;
+      z-index: 3; /* Title text above the snake */
+    }
+
+    .prize .subtitle {
+      font-size: 13px;
+      color: #666;
+      margin: 0;
+      font-weight: 600;
+      z-index: 3; /* Subtitle text above the snake */
+    }
+
+    /* Main snake SVG element, positioned to overlap text */
+    .snake-svg {
+      position: absolute;
+      width: 90%;
+      height: 90%;
+      top: 5%;
+      left: 5%;
+      z-index: 2; /* Snake is behind text but above background */
+      opacity: 0.15;
+      transition: opacity 400ms ease;
+    }
+
+    .snake-head {
+      transform-origin: 92% 55%;
+      animation: headWiggle 1400ms infinite ease-in-out;
+    }
+
+    @keyframes headWiggle {
+      0% { transform: translateX(0) rotate(0deg); }
+      50% { transform: translateX(2px) rotate(4deg); }
+      100% { transform: translateX(0)rotate(0deg); }
+    }
+
+    /* Canvas overlay sits on top */
+    canvas.scratch {
+      position: absolute;
+      inset: 0;
+      z-index: 10; /* Canvas is on the very top */
+      cursor: grab;
+      touch-action: none;
+      display: block;
+    }
+
+    /* Revealed state styles for the prize area */
+    .prize.revealed {
+      background: linear-gradient(135deg, var(--magenta), var(--amber));
+      color: #fff;
+      text-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .prize.revealed .title {
+      color: #fff;
+      font-size: 28px;
+      letter-spacing: 1.6px;
+    }
+
+    .prize.revealed .subtitle {
+      color: rgba(255, 255, 255, 0.95);
+      font-size: 14px;
+    }
+    
+    .prize.revealed .snake-svg {
+      opacity: 0.3; /* Make snake more visible on reveal */
+    }
+
+    /* Controls below the card */
+    .controls {
+      width: var(--card-w);
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 16px;
+    }
+
+    .btn {
+      padding: 10px 18px;
+      border-radius: 10px;
+      border: 0;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: transform 150ms ease, box-shadow 150ms ease;
+      background: #2d5bff;
+      color: white;
+      box-shadow: 0 4px 12px rgba(45,91,255,0.2);
+    }
+    .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 16px rgba(45,91,255,0.3);
+    }
+    .btn.secondary {
+      background: #fff;
+      color: #333;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    .btn.secondary:hover {
+        box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+    }
+
+
+    /* Responsive adjustments for smaller screens */
+    @media (max-width: 440px) {
+      :root {
+        --card-w: 320px;
+        --card-h: 200px;
+      }
+      .prize.revealed .title {
+          font-size: 24px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div style="display:flex; flex-direction:column; align-items:center;">
+    <div class="card" id="card">
+      <div class="prize" id="prize">
+        <svg class="snake-svg" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+            <defs>
+                <linearGradient id="sg-unrevealed" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0%" stop-color="#cccccc" />
+                    <stop offset="100%" stop-color="#aaaaaa" />
+                </linearGradient>
+            </defs>
+            <path d="M 10 90 C 40 20, 80 20, 110 90 S 160 160, 190 90" stroke="url(#sg-unrevealed)" stroke-width="12" stroke-linecap="round" fill="none" />
+        </svg>
+
+        <h3 class="title" id="prizeTitle">Register for Snakes and Ladders</h3>
+        <div class="subtitle" id="prizeSub">Don't miss out on the fun</div>
+      </div>
+
+      <canvas id="scratch" class="scratch" aria-label="Scratch card"></canvas>
+    </div>
+
+    <div class="controls">
+      <button class="btn" id="resetBtn">Reset</button>
+      <button class="btn secondary" id="revealBtn">Force Reveal</button>
+    </div>
+  </div>
+
+<script>
+(function() {
+  const card = document.getElementById('card');
+  const prize = document.getElementById('prize');
+  const canvas = document.getElementById('scratch');
+  const resetBtn = document.getElementById('resetBtn');
+  const revealBtn = document.getElementById('revealBtn');
+  // MODIFIED LINE: Removed the second argument for max compatibility on iOS.
+  const ctx = canvas.getContext('2d');
+
+  const originalPrizeHTML = prize.innerHTML;
+
+  const BRUSH_RADIUS = 22;
+  let isDrawing = false;
+  let lastPointerPosition = null;
+  let isRevealed = false;
+
+  const sampler = document.createElement('canvas');
+  const samplerCtx = sampler.getContext('2d');
+
+  function setupCanvas() {
+    const rect = card.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * ratio);
+    canvas.height = Math.round(rect.height * ratio);
+    canvas.style.width = `${rect.width}px`;
+    canvas.style.height = `${rect.height}px`;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    drawOverlay();
+  }
+
+  function drawOverlay() {
+    isRevealed = false;
+    prize.classList.remove('revealed');
+    const w = canvas.width;
+    const h = canvas.height;
+    ctx.globalCompositeOperation = 'source-over';
+    const gradient = ctx.createLinearGradient(0, 0, w, h);
+    gradient.addColorStop(0, '#d6d6d6');
+    gradient.addColorStop(0.5, '#bfbfbf');
+    gradient.addColorStop(1, '#e8e8e8');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    ctx.globalAlpha = 0.08;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    for (let i = -h; i < w; i += 8) {
+      ctx.beginPath();
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i + h, h);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.fillStyle = '#222';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const cssWidth = w / (window.devicePixelRatio || 1);
+    const cssHeight = h / (window.devicePixelRatio || 1);
+    ctx.font = '700 18px Poppins, sans-serif';
+    ctx.fillText('SCRATCH HERE', cssWidth / 2, cssHeight / 2 - 12);
+    ctx.font = '600 13px Poppins, sans-serif';
+    ctx.fillText("IF YOU DON'T WANT TO MISS ON FUN", cssWidth / 2, cssHeight / 2 + 14);
+  }
+
+  function getPointFromEvent(event) {
+    const rect = canvas.getBoundingClientRect();
+    const clientX = event.clientX !== undefined ? event.clientX : event.touches[0].clientX;
+    const clientY = event.clientY !== undefined ? event.clientY : event.touches[0].clientY;
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function eraseBetween(p1, p2) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,1)';
+    ctx.lineWidth = BRUSH_RADIUS * 2;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(p2.x, p2.y, BRUSH_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function onPointerDown(e) {
+    if (isRevealed) return;
+    e.preventDefault();
+    isDrawing = true;
+    if (e.pointerId) {
+        try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
+    }
+    lastPointerPosition = getPointFromEvent(e);
+    ctx.save();
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(lastPointerPosition.x, lastPointerPosition.y, BRUSH_RADIUS, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function onPointerMove(e) {
+    if (!isDrawing || isRevealed) return;
+    e.preventDefault();
+    const currentPoint = getPointFromEvent(e);
+    eraseBetween(lastPointerPosition, currentPoint);
+    lastPointerPosition = currentPoint;
+  }
+
+  function onPointerUp(e) {
+    if (!isDrawing) return;
+    isDrawing = false;
+    if (e.pointerId) {
+        try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+    requestAnimationFrame(checkClearedPercentage);
+  }
+
+  function onPointerCancel(e) {
+    isDrawing = false;
+    lastPointerPosition = null;
+    if (e.pointerId) {
+        try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+  }
+
+  function checkClearedPercentage() {
+    const sampleW = 80;
+    const sampleH = Math.round((canvas.height / canvas.width) * sampleW);
+    sampler.width = sampleW;
+    sampler.height = sampleH;
+    samplerCtx.clearRect(0, 0, sampleW, sampleH);
+    samplerCtx.drawImage(canvas, 0, 0, sampleW, sampleH);
+    const imgData = samplerCtx.getImageData(0, 0, sampleW, sampleH).data;
+    let clearedPixels = 0;
+    for (let i = 3; i < imgData.length; i += 4) {
+      if (imgData[i] === 0) clearedPixels++;
+    }
+    const percentage = (clearedPixels / (sampleW * sampleH)) * 100;
+    if (percentage > 50 && !isRevealed) {
+      isRevealed = true;
+      setTimeout(() => {
+        revealPrizeContent();
+        triggerConfetti(redirectToLinkAfterDelay); 
+      }, 120);
+    }
+  }
+
+  function revealPrizeContent() {
+    prize.classList.add('revealed');
+    prize.innerHTML = `
+      <svg class="snake-svg" viewBox="0 0 200 120" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid meet">
+        <defs>
+          <linearGradient id="sg-revealed" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="rgba(255,255,255,0.7)" />
+            <stop offset="100%" stop-color="rgba(255,255,255,0)" />
+          </linearGradient>
+        </defs>
+        <path d="M 10 90 C 40 20, 80 20, 110 90 S 160 160, 190 90" stroke="url(#sg-revealed)" stroke-width="12" stroke-linecap="round" fill="none" />
+      </svg>
+      <h3 class="title">SLEUTHS AND LADDER</h3>
+      <div class="subtitle">Register Now — Don’t miss the fun!</div>
+    `;
+    canvas.style.transition = 'opacity 300ms ease';
+    canvas.style.opacity = '0';
+  }
+
+  function triggerConfetti(onComplete) {
+    const duration = 800;
+    const end = Date.now() + duration;
+    (function frame() {
+      confetti({ particleCount: 5, angle: 60, spread: 55, origin: { x: 0 }, colors: [VAR_MAGENTA, VAR_AMBER] });
+      confetti({ particleCount: 5, angle: 120, spread: 55, origin: { x: 1 }, colors: [VAR_MAGENTA, VAR_AMBER] });
+      
+      if (Date.now() < end) {
+        requestAnimationFrame(frame);
+      } else {
+        if (typeof onComplete === 'function') {
+          onComplete();
+        }
+      }
+    }());
+  }
+    
+  function redirectToLinkAfterDelay() {
+    setTimeout(() => {
+      window.location.href = 'https://register-techtatva.manipal.edu/login?returnUrl=%2Fdashboard';
+    }, 800);
+  }
+
+  const VAR_MAGENTA = getComputedStyle(document.documentElement).getPropertyValue('--magenta').trim();
+  const VAR_AMBER = getComputedStyle(document.documentElement).getPropertyValue('--amber').trim();
+
+  function resetCard() {
+    isRevealed = false;
+    prize.classList.remove('revealed');
+    prize.innerHTML = originalPrizeHTML;
+    canvas.style.transition = 'none';
+    canvas.style.opacity = '1';
+    requestAnimationFrame(() => drawOverlay());
+  }
+
+  function forceReveal() {
+    if (isRevealed) return;
+    isRevealed = true;
+    revealPrizeContent();
+    triggerConfetti(redirectToLinkAfterDelay);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+
+  canvas.addEventListener('pointerdown', onPointerDown);
+  canvas.addEventListener('pointermove', onPointerMove);
+  canvas.addEventListener('pointerup', onPointerUp);
+  canvas.addEventListener('pointercancel', onPointerCancel);
+
+  canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+  canvas.addEventListener('touchmove', onPointerMove, { passive: false });
+  canvas.addEventListener('touchend', onPointerUp);
+  canvas.addEventListener('touchcancel', onPointerCancel);
+
+  resetBtn.addEventListener('click', resetCard);
+  revealBtn.addEventListener('click', forceReveal);
+
+  window.addEventListener('resize', setupCanvas);
+  window.addEventListener('load', setupCanvas);
+})();
+</script>
+</body>
+</html>
