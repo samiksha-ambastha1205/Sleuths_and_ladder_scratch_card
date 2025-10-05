@@ -217,7 +217,6 @@
   const canvas = document.getElementById('scratch');
   const resetBtn = document.getElementById('resetBtn');
   const revealBtn = document.getElementById('revealBtn');
-  // MODIFIED LINE: Removed the second argument for max compatibility on iOS.
   const ctx = canvas.getContext('2d');
 
   const originalPrizeHTML = prize.innerHTML;
@@ -275,10 +274,22 @@
     ctx.fillText("IF YOU DON'T WANT TO MISS ON FUN", cssWidth / 2, cssHeight / 2 + 14);
   }
 
+  // *** MODIFIED FUNCTION FOR IOS COMPATIBILITY ***
+  // This new version reliably gets coordinates from touch events first.
   function getPointFromEvent(event) {
     const rect = canvas.getBoundingClientRect();
-    const clientX = event.clientX !== undefined ? event.clientX : event.touches[0].clientX;
-    const clientY = event.clientY !== undefined ? event.clientY : event.touches[0].clientY;
+    let clientX, clientY;
+
+    // Prioritize touch event coordinates
+    if (event.touches && event.touches.length > 0) {
+        clientX = event.touches[0].clientX;
+        clientY = event.touches[0].clientY;
+    } else {
+        // Fallback for mouse/pointer events
+        clientX = event.clientX;
+        clientY = event.clientY;
+    }
+
     return { x: clientX - rect.left, y: clientY - rect.top };
   }
 
@@ -303,9 +314,9 @@
     if (isRevealed) return;
     e.preventDefault();
     isDrawing = true;
-    if (e.pointerId) {
-        try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
-    }
+    if (e.pointerId) {
+        try { canvas.setPointerCapture(e.pointerId); } catch(err) {}
+    }
     lastPointerPosition = getPointFromEvent(e);
     ctx.save();
     ctx.globalCompositeOperation = 'destination-out';
@@ -326,19 +337,19 @@
   function onPointerUp(e) {
     if (!isDrawing) return;
     isDrawing = false;
-    if (e.pointerId) {
-        try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
-    }
+    if (e.pointerId) {
+        try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
     requestAnimationFrame(checkClearedPercentage);
   }
 
-  function onPointerCancel(e) {
-    isDrawing = false;
-    lastPointerPosition = null;
-    if (e.pointerId) {
-        try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
-    }
-  }
+  function onPointerCancel(e) {
+    isDrawing = false;
+    lastPointerPosition = null;
+    if (e.pointerId) {
+        try { canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+  }
 
   function checkClearedPercentage() {
     const sampleW = 80;
@@ -427,12 +438,12 @@
   canvas.addEventListener('pointerdown', onPointerDown);
   canvas.addEventListener('pointermove', onPointerMove);
   canvas.addEventListener('pointerup', onPointerUp);
-  canvas.addEventListener('pointercancel', onPointerCancel);
+  canvas.addEventListener('pointercancel', onPointerCancel);
 
-  canvas.addEventListener('touchstart', onPointerDown, { passive: false });
-  canvas.addEventListener('touchmove', onPointerMove, { passive: false });
-  canvas.addEventListener('touchend', onPointerUp);
-  canvas.addEventListener('touchcancel', onPointerCancel);
+  canvas.addEventListener('touchstart', onPointerDown, { passive: false });
+  canvas.addEventListener('touchmove', onPointerMove, { passive: false });
+  canvas.addEventListener('touchend', onPointerUp);
+  canvas.addEventListener('touchcancel', onPointerCancel);
 
   resetBtn.addEventListener('click', resetCard);
   revealBtn.addEventListener('click', forceReveal);
